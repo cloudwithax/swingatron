@@ -186,7 +186,7 @@ onMounted(() => {
 .home-view {
   padding: 24px;
   overflow-y: auto;
-  height: calc(100% - 48px);
+  height: 100%;
 }
 
 .home-header {
@@ -256,8 +256,10 @@ onMounted(() => {
   color: var(--color-on-surface);
 }
 
-.recently-played-section,
-.recently-added-section {
+.recently-played-section {
   margin-bottom: 32px;
+}
+.recently-added-section {
+  margin-bottom: 72px;
 }
 </style>

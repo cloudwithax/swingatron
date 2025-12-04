@@ -24,5 +24,8 @@ export {
   getTrackStreamUrl,
   getThumbnailUrl,
   getArtistImageUrl,
+  getPlaylistImageUrl,
+  fetchLyrics,
+  searchAndDownloadLyrics,
   triggerLibraryScan
 } from './client'

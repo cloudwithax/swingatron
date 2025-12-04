@@ -276,7 +276,7 @@ function goBack(): void {
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
-              d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-.06 4.5c1.4 0 2.5.42 2.5 1.78 0 1.38-1.33 1.63-2.14 1.63h-1.2v1.23h1.08c.93 0 2.58.22 2.58 1.9 0 1.44-1.37 1.96-2.66 1.96-1.03 0-2.43-.2-2.67-1.47l1.43-.3c.1.52.7.73 1.22.73.56 0 1.16-.2 1.16-.87 0-.76-.8-.88-1.44-.88H8.86V9.98h1.16c.54 0 1.3-.1 1.3-.77 0-.62-.62-.82-1.17-.82-.58 0-1.05.22-1.16.84l-1.37-.33c.23-1.34 1.4-1.9 2.92-1.9z"
+              d="M10.584 17.21l-.88-2.392s-1.43 1.594-3.573 1.594c-1.897 0-3.244-1.649-3.244-4.288 0-3.381 1.704-4.591 3.381-4.591 2.476 0 3.265 1.596 3.927 3.646l.88 2.75c.88 2.668 2.53 4.81 7.285 4.81 3.41 0 5.722-1.044 5.722-3.795 0-2.227-1.267-3.38-3.633-3.932l-1.758-.385c-1.21-.275-1.567-.77-1.567-1.594 0-.935.742-1.484 1.952-1.484 1.32 0 2.034.495 2.144 1.677l2.749-.33c-.22-2.474-1.924-3.492-4.729-3.492-2.474 0-4.893.935-4.893 3.932 0 1.87.907 3.051 3.189 3.602l1.87.44c1.402.33 1.869.825 1.869 1.68 0 1.045-1.073 1.485-3.105 1.485-3.018 0-4.278-1.58-5.02-3.742l-.905-2.75c-1.156-3.573-3.018-4.591-6.647-4.591C2.093 6.26 0 8.78 0 12.476 0 16.063 2.012 18.5 5.96 18.5c3.079 0 4.624-1.29 4.624-1.29z"
             />
           </svg>
           {{ lastfmButtonText }}
@@ -350,17 +350,25 @@ function goBack(): void {
 
       <div class="settings-item">
         <div class="settings-item-info">
-          <div class="settings-item-label">Swing Music Desktop</div>
+          <div class="settings-item-label">Swingatron</div>
           <div class="settings-item-value">Version {{ appVersion }}</div>
-        </div>
-      </div>
-
-      <div class="settings-item">
-        <div class="settings-item-info">
-          <div class="settings-item-label">Source Code</div>
-          <a href="https://github.com/swingmx" target="_blank" class="settings-link">
-            github.com/swingmx
-          </a>
+          <div class="settings-item-value">
+            Made with ❤️ by
+            <a
+              href="https://github.com/cloudwithax"
+              target="_blank"
+              rel="noopener"
+              class="settings-link-alt"
+              >clxud</a
+            >
+          </div>
+          <a
+            href="https://github.com/cloudwithax/swingatron"
+            target="_blank"
+            rel="noopener"
+            class="settings-link-alt"
+            >View Source</a
+          >
         </div>
       </div>
     </section>
@@ -561,7 +569,13 @@ function goBack(): void {
   text-decoration: none;
 }
 
-.settings-link:hover {
+.settings-link-alt {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  text-decoration: none;
+}
+
+.settings-link-alt:hover {
   text-decoration: underline;
 }
 

@@ -228,15 +228,20 @@ export async function fetchAuthenticatedAudioUrl(
  */
 export function getThumbnailUrl(
   image: string,
-  size: 'small' | 'medium' | 'large' = 'medium'
+  size: 'xsmall' | 'small' | 'medium' | 'large' = 'medium'
 ): string {
   const baseUrl = getBaseUrl() || ''
   if (!image) return ''
 
-  if (size === 'small') {
-    return `${baseUrl}img/thumbnail/small/${image}`
+  // server endpoints:
+  // /img/thumbnail/<img> = large (512px)
+  // /img/thumbnail/medium/<img> = medium (256px)
+  // /img/thumbnail/small/<img> = small (96px)
+  // /img/thumbnail/xsmall/<img> = xsmall (64px)
+  if (size === 'large') {
+    return `${baseUrl}img/thumbnail/${image}`
   }
-  return `${baseUrl}img/thumbnail/${image}`
+  return `${baseUrl}img/thumbnail/${size}/${image}`
 }
 
 /**
