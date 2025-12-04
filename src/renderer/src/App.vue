@@ -46,7 +46,7 @@ function toggleSidebar(): void {
               <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </svg>
           </button>
-          <span class="logo-text">Swing</span>
+          <span class="logo-text">Swingatron</span>
         </div>
 
         <nav class="nav-section">
