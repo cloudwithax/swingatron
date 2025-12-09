@@ -4,13 +4,9 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'desktop/**'
   pull_request:
     branches:
       - main
-    paths:
-      - 'desktop/**'
   workflow_dispatch:
     inputs:
       create_release:
@@ -41,10 +37,6 @@ jobs:
             artifact_name: linux
 
     runs-on: ${{ matrix.os }}
-    
-    defaults:
-      run:
-        working-directory: desktop
 
     steps:
       - name: Checkout repository
@@ -104,8 +96,8 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}-installers
           path: |
-            desktop/dist/*.exe
-            desktop/dist/*.msi
+            dist/*.exe
+            dist/*.msi
           if-no-files-found: warn
           retention-days: 30
 
@@ -115,8 +107,8 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}-installers
           path: |
-            desktop/dist/*.dmg
-            desktop/dist/*.zip
+            dist/*.dmg
+            dist/*.zip
           if-no-files-found: warn
           retention-days: 30
 
@@ -126,10 +118,10 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}-installers
           path: |
-            desktop/dist/*.AppImage
-            desktop/dist/*.deb
-            desktop/dist/*.snap
-            desktop/dist/*.rpm
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.snap
+            dist/*.rpm
           if-no-files-found: warn
           retention-days: 30
 
