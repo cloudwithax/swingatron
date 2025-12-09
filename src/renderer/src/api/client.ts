@@ -143,6 +143,9 @@ apiClient.interceptors.response.use(
       const refreshToken = getRefreshToken()
       if (!refreshToken) {
         clearTokens()
+        if (window.api?.clearSessionCookies) {
+          window.api.clearSessionCookies()
+        }
         processQueue(error, null)
         isRefreshing = false
         // Redirect to login
@@ -175,6 +178,9 @@ apiClient.interceptors.response.use(
         processQueue(refreshError as AxiosError, null)
         isRefreshing = false
         clearTokens()
+        if (window.api?.clearSessionCookies) {
+          window.api.clearSessionCookies()
+        }
         // Redirect to login
         window.location.href = '/#/login'
         return Promise.reject(refreshError)

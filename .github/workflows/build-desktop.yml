@@ -1,0 +1,218 @@
+name: Build Desktop Installers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'desktop/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'desktop/**'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a release with the built artifacts'
+        required: false
+        default: false
+        type: boolean
+
+# auto-cancel in-progress runs on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            artifact_name: windows
+          - os: macos-latest
+            platform: mac
+            artifact_name: macos
+          - os: ubuntu-latest
+            platform: linux
+            artifact_name: linux
+
+    runs-on: ${{ matrix.os }}
+    
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # linux specific dependencies for electron-builder
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libarchive-tools rpm
+
+      # macos code signing setup (optional, requires secrets)
+      - name: Setup macOS signing
+        if: matrix.platform == 'mac' && env.CSC_LINK != ''
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+        run: echo "Code signing configured"
+
+      # windows code signing setup (optional, requires secrets)
+      - name: Setup Windows signing
+        if: matrix.platform == 'win' && env.CSC_LINK != ''
+        env:
+          CSC_LINK: ${{ secrets.WIN_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTS_PASSWORD }}
+        run: echo "Code signing configured"
+
+      - name: Build application
+        run: bun run build:${{ matrix.platform }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # code signing env vars (will be empty if secrets not set)
+          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MAC_CERTS || matrix.platform == 'win' && secrets.WIN_CERTS || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MAC_CERTS_PASSWORD || matrix.platform == 'win' && secrets.WIN_CERTS_PASSWORD || '' }}
+
+      - name: List build artifacts
+        run: ls -la dist/
+        shell: bash
+
+      - name: Upload Windows artifacts
+        if: matrix.platform == 'win'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-installers
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.msi
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload macOS artifacts
+        if: matrix.platform == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-installers
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload Linux artifacts
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-installers
+          path: |
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+            desktop/dist/*.snap
+            desktop/dist/*.rpm
+          if-no-files-found: warn
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    # only run on tagged commits or manual trigger with create_release
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Display downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f -name "*" | head -50
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( \
+            -name "*.exe" -o \
+            -name "*.msi" -o \
+            -name "*.dmg" -o \
+            -name "*.zip" -o \
+            -name "*.AppImage" -o \
+            -name "*.deb" -o \
+            -name "*.snap" -o \
+            -name "*.rpm" \
+          \) -exec cp {} release-files/ \;
+          echo "Release files:"
+          ls -la release-files/
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="manual-$(date +'%Y%m%d-%H%M%S')"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Swingatron ${{ steps.version.outputs.version }}
+          body: |
+            ## Swingatron Desktop ${{ steps.version.outputs.version }}
+            
+            ### Downloads
+            
+            | Platform | File |
+            |----------|------|
+            | Windows | `.exe` installer |
+            | macOS | `.dmg` disk image |
+            | Linux | `.AppImage`, `.deb`, `.snap` |
+            
+            ### Installation
+            
+            **Windows**: Download and run the `.exe` installer.
+            
+            **macOS**: Download the `.dmg` file, open it, and drag Swingatron to your Applications folder.
+            
+            **Linux**: 
+            - AppImage: Make executable with `chmod +x` and run
+            - Debian/Ubuntu: Install with `sudo dpkg -i swingatron-*.deb`
+            - Snap: Install with `sudo snap install swingatron-*.snap --dangerous`
+          files: release-files/*
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

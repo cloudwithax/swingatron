@@ -126,6 +126,17 @@ export const useAuthStore = defineStore('auth', () => {
 
     clearTokens()
     localStorage.removeItem('swing_user')
+
+    // clear electron's internal cookie store via IPC
+    if (window.api?.clearSessionCookies) {
+      window.api.clearSessionCookies()
+    }
+
+    // clear any cached data that might be stale
+    localStorage.removeItem('player_queue')
+    localStorage.removeItem('swing_albums_cache')
+    localStorage.removeItem('swing_artists_cache')
+
     if (!preserveServer) {
       localStorage.removeItem('swing_base_url')
     }
