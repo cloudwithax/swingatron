@@ -99,6 +99,11 @@ const artists = computed(() => {
   return track.artists || []
 })
 
+// lossless quality indicator (bitrate >= 1024 kbps)
+const isLossless = computed(() => {
+  return (playerStore.currentTrack?.bitrate ?? 0) >= 1024
+})
+
 function goToAlbum() {
   const track = playerStore.currentTrack
   if (track?.albumhash) {
@@ -126,8 +131,8 @@ async function enterFullscreen() {
     if (!document.fullscreenElement) {
       await document.documentElement.requestFullscreen()
     }
-  } catch (error) {
-    console.warn('Failed to enter fullscreen:', error)
+  } catch {
+    // failed to enter fullscreen
   }
 }
 
@@ -211,13 +216,16 @@ function handleVolumeChange(event: Event) {
         </div>
       </div>
       <div class="track-info">
-        <div ref="titleWrapperRef" class="track-title-wrapper" @click="goToAlbum">
-          <div ref="titleRef" class="track-title" :class="{ 'is-overflowing': isOverflowing }">
-            <span>{{ playerStore.currentTrack.title }}</span>
-            <span v-if="isOverflowing" aria-hidden="true">{{
-              playerStore.currentTrack.title
-            }}</span>
+        <div class="track-title-row">
+          <div ref="titleWrapperRef" class="track-title-wrapper" @click="goToAlbum">
+            <div ref="titleRef" class="track-title" :class="{ 'is-overflowing': isOverflowing }">
+              <span>{{ playerStore.currentTrack.title }}</span>
+              <span v-if="isOverflowing" aria-hidden="true">{{
+                playerStore.currentTrack.title
+              }}</span>
+            </div>
           </div>
+          <span v-if="isLossless" class="lossless-badge" title="Lossless Audio Quality">M</span>
         </div>
         <div class="track-artists">
           <template v-for="(artist, index) in artists" :key="artist.artisthash">
@@ -229,6 +237,23 @@ function handleVolumeChange(event: Event) {
           <span v-if="artists.length === 0" class="artist-link">Unknown Artist</span>
         </div>
       </div>
+      <button
+        class="like-btn"
+        :class="{ 'is-favorite': playerStore.currentTrack.is_favorite }"
+        :title="playerStore.currentTrack.is_favorite ? 'Remove from favorites' : 'Add to favorites'"
+        @click="playerStore.toggleCurrentTrackFavorite"
+      >
+        <svg v-if="playerStore.currentTrack.is_favorite" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+          />
+        </svg>
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path
+            d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+          />
+        </svg>
+      </button>
     </div>
 
     <!-- Center: Playback Controls -->
@@ -413,7 +438,7 @@ function handleVolumeChange(event: Event) {
   background-color: var(--color-surface);
   border-top: 1px solid var(--color-outline-variant);
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-columns: minmax(180px, 1fr) minmax(400px, 1.8fr) minmax(220px, 1fr);
   align-items: center;
   padding: 0 16px;
   z-index: 100;
@@ -472,11 +497,33 @@ function handleVolumeChange(event: Event) {
   overflow: hidden;
 }
 
+.track-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lossless-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #1a1a1a;
+  background-color: #d4a853;
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 .track-title-wrapper {
   cursor: pointer;
   transition: color 0.15s ease;
   overflow: hidden;
-  width: 100%;
+  min-width: 0;
   margin-bottom: 2px;
 }
 
@@ -555,6 +602,41 @@ function handleVolumeChange(event: Event) {
 
 .artist-separator {
   color: var(--color-on-surface-variant);
+}
+
+.like-btn {
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  opacity: 0;
+  flex-shrink: 0;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.left-section:hover .like-btn,
+.like-btn.is-favorite {
+  opacity: 1;
+}
+
+.like-btn:hover {
+  background-color: var(--color-surface-variant);
+}
+
+.like-btn.is-favorite {
+  color: var(--color-error);
+}
+
+.like-btn svg {
+  width: 100%;
+  height: 100%;
 }
 
 /* Center Section - Playback Controls */
@@ -721,13 +803,13 @@ function handleVolumeChange(event: Event) {
 }
 
 .volume-slider-container {
-  width: 100px;
+  width: 130px;
   display: flex;
   align-items: center;
 }
 
 .volume-slider {
-  width: 80px;
+  width: 120px;
   height: 4px;
   -webkit-appearance: none;
   appearance: none;

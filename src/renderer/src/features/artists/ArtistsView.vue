@@ -47,8 +47,8 @@ async function handleArtistPlay(artist: Artist): Promise<void> {
     if (artistData?.tracks && artistData.tracks.length > 0) {
       playerStore.setQueue(artistData.tracks, 0, false, `ar:${artist.artisthash}`)
     }
-  } catch (err) {
-    console.error('failed to fetch artist tracks:', err)
+  } catch {
+    // failed to fetch artist tracks
   }
 }
 

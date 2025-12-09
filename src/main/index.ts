@@ -1,7 +1,8 @@
-import { app, shell, BrowserWindow, ipcMain, nativeImage } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeImage, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { discordRPC } from './discord-rpc'
 
 // thumbnail toolbar icons for windows taskbar controls
 import playIcon from '../../resources/icons/play.png?asset'
@@ -60,6 +61,59 @@ function createWindow(): void {
     }
   })
 
+  // discord rpc handlers
+  ipcMain.on(
+    'discord-rpc-update',
+    (
+      _event,
+      data: {
+        trackTitle: string
+        artist: string
+        album: string
+        duration: number
+        position: number
+        isPaused: boolean
+        artworkUrl?: string
+        imageHash?: string
+      }
+    ) => {
+      discordRPC.setPlayingPresence(
+        data.trackTitle,
+        data.artist,
+        data.album,
+        data.duration,
+        data.position,
+        data.isPaused,
+        data.artworkUrl,
+        data.imageHash
+      )
+    }
+  )
+
+  ipcMain.on('discord-rpc-idle', () => {
+    discordRPC.setIdlePresence()
+  })
+
+  ipcMain.on('discord-rpc-clear', () => {
+    discordRPC.clearPresence()
+  })
+
+  // clear all session cookies - used when authentication fails
+  ipcMain.handle('clear-session-cookies', async () => {
+    try {
+      const cookies = await session.defaultSession.cookies.get({})
+      for (const cookie of cookies) {
+        // build the url for the cookie
+        const protocol = cookie.secure ? 'https' : 'http'
+        const url = `${protocol}://${cookie.domain?.replace(/^\./, '')}${cookie.path || '/'}`
+        await session.defaultSession.cookies.remove(url, cookie.name)
+      }
+      return true
+    } catch {
+      return false
+    }
+  })
+
   // notify renderer when window maximize state changes
   mainWindow.on('maximize', () => {
     mainWindow.webContents.send('window-maximized-changed', true)
@@ -106,7 +160,10 @@ app.whenReady().then(() => {
   })
 
   // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  ipcMain.on('ping', () => {})
+
+  // initialize discord rpc
+  discordRPC.connect().catch(() => {})
 
   createWindow()
 
@@ -124,6 +181,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', async () => {
+  await discordRPC.disconnect()
 })
 
 // windows thumbnail toolbar management

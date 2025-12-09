@@ -145,6 +145,19 @@ export const useFolderStore = defineStore('folders', () => {
     }
   }
 
+  function reset(): void {
+    folders.value = []
+    tracks.value = []
+    rootFolders.value = []
+    currentPath.value = ''
+    pathHistory.value = []
+    isLoading.value = false
+    error.value = null
+    totalItems.value = 0
+    currentPage.value = 0
+    pageSize.value = 50
+  }
+
   return {
     // State
     folders,
@@ -169,6 +182,7 @@ export const useFolderStore = defineStore('folders', () => {
     navigateToPathPart,
     toggleTrackFavorite,
     updateTrackFavorite,
-    refresh
+    refresh,
+    reset
   }
 })

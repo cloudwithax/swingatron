@@ -133,8 +133,8 @@ async function handlePlayPause(event?: MouseEvent): Promise<void> {
         const sortedTracks = sortAlbumTracks(albumData.tracks)
         playerStore.setQueue(sortedTracks, 0, false, `al:${album.albumhash}`)
       }
-    } catch (err) {
-      console.error('failed to fetch album tracks:', err)
+    } catch {
+      // failed to fetch album tracks
     } finally {
       isLoadingPlay.value = false
     }

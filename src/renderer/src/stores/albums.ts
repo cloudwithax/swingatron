@@ -137,6 +137,19 @@ export const useAlbumStore = defineStore('albums', () => {
     }
   }
 
+  // update track favorite status without making an api call (for cross-store sync)
+  function updateTrackFavorite(trackhash: string, isFavorite: boolean): void {
+    if (currentAlbum.value) {
+      const trackIndex = currentAlbum.value.tracks.findIndex((t) => t.trackhash === trackhash)
+      if (trackIndex !== -1) {
+        currentAlbum.value.tracks[trackIndex] = {
+          ...currentAlbum.value.tracks[trackIndex],
+          is_favorite: isFavorite
+        }
+      }
+    }
+  }
+
   function clearDetail(): void {
     currentAlbum.value = null
     detailError.value = null
@@ -144,6 +157,20 @@ export const useAlbumStore = defineStore('albums', () => {
 
   function refresh(): void {
     loadAlbums(true)
+  }
+
+  function reset(): void {
+    albums.value = []
+    isLoading.value = false
+    error.value = null
+    totalAlbums.value = 0
+    currentPage.value = 0
+    pageSize.value = 50
+    sortBy.value = 'created_date'
+    sortReverse.value = true
+    currentAlbum.value = null
+    isLoadingDetail.value = false
+    detailError.value = null
   }
 
   return {
@@ -168,7 +195,9 @@ export const useAlbumStore = defineStore('albums', () => {
     setSortOption,
     toggleAlbumFavorite,
     toggleTrackFavorite,
+    updateTrackFavorite,
     clearDetail,
-    refresh
+    refresh,
+    reset
   }
 })

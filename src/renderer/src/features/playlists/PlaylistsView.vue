@@ -44,8 +44,8 @@ async function handlePlaylistPlay(playlist: Playlist): Promise<void> {
     if (playlistData?.tracks && playlistData.tracks.length > 0) {
       playerStore.setQueue(playlistData.tracks, 0, false, `pl:${playlist.id}`)
     }
-  } catch (err) {
-    console.error('failed to fetch playlist tracks:', err)
+  } catch {
+    // failed to fetch playlist tracks
   } finally {
     loadingPlaylistId.value = null
   }

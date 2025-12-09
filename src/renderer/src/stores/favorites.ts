@@ -86,6 +86,22 @@ export const useFavoritesStore = defineStore('favorites', () => {
     }
   }
 
+  // update track favorite status without making an api call (for cross-store sync)
+  // if a track is unfavorited, remove it from the list; if favorited, we'd need the full track
+  // object to add it, so this only handles removals (additions require a refresh)
+  function updateTrackFavorite(trackhash: string, isFavorite: boolean): void {
+    if (!isFavorite) {
+      // remove from favorites list
+      tracks.value = tracks.value.filter((t) => t.trackhash !== trackhash)
+      recents.value = recents.value.filter(
+        (r) => !(r.type === 'track' && r.item.trackhash === trackhash)
+      )
+      count.value.tracks = Math.max(0, count.value.tracks - 1)
+    }
+    // for adding favorites, we don't have the full track object so the list won't update
+    // until the next refresh - this is acceptable behavior
+  }
+
   function setActiveTab(tab: 'tracks' | 'albums' | 'artists' | 'recents'): void {
     activeTab.value = tab
   }
@@ -121,6 +137,7 @@ export const useFavoritesStore = defineStore('favorites', () => {
     removeTrackFavorite,
     removeAlbumFavorite,
     removeArtistFavorite,
+    updateTrackFavorite,
     setActiveTab,
     refresh,
     clear

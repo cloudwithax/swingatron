@@ -157,8 +157,8 @@ async function exitFullscreen(): Promise<void> {
     if (document.fullscreenElement) {
       await document.exitFullscreen()
     }
-  } catch (error) {
-    console.warn('Failed to exit fullscreen:', error)
+  } catch {
+    // failed to exit fullscreen
   }
 }
 

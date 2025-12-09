@@ -11,6 +11,21 @@ interface WindowAPI {
   onMediaPlayPause: (callback: () => void) => void
   onMediaNext: (callback: () => void) => void
   onMediaPrevious: (callback: () => void) => void
+  // discord rpc methods
+  updateDiscordPresence: (data: {
+    trackTitle: string
+    artist: string
+    album: string
+    duration: number
+    position: number
+    isPaused: boolean
+    artworkUrl?: string
+    imageHash?: string
+  }) => void
+  setDiscordIdle: () => void
+  clearDiscordPresence: () => void
+  // session management
+  clearSessionCookies: () => Promise<boolean>
 }
 
 declare global {

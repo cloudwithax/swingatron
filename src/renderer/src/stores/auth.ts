@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { AxiosError } from 'axios'
 import type { User } from '@/api/types'
 import * as authApi from '@/api/auth'
-import { getAccessToken, getBaseUrl, clearTokens, clearBaseUrl } from '@/api/client'
+import apiClient, { getAccessToken, getBaseUrl, clearTokens, clearBaseUrl } from '@/api/client'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -98,16 +98,37 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout(): void {
-    user.value = null
-    hasToken.value = false
-    clearTokens()
-    localStorage.removeItem('swing_user')
+    reset({ preserveServer: true })
   }
 
   function clearServer(): void {
-    serverUrl.value = null
-    clearBaseUrl()
-    logout()
+    reset()
+  }
+
+  function reset(options?: { preserveServer?: boolean }): void {
+    const preserveServer = options?.preserveServer ?? false
+    const existingBaseUrl = getBaseUrl()
+
+    user.value = null
+    users.value = []
+    isLoading.value = false
+    error.value = null
+    hasToken.value = false
+    serverUrl.value = preserveServer ? existingBaseUrl : null
+
+    if (preserveServer && existingBaseUrl) {
+      // keep the base url applied to axios defaults
+      // ensures the next login reuses the same server without revalidating
+      apiClient.defaults.baseURL = existingBaseUrl
+    } else {
+      clearBaseUrl()
+    }
+
+    clearTokens()
+    localStorage.removeItem('swing_user')
+    if (!preserveServer) {
+      localStorage.removeItem('swing_base_url')
+    }
   }
 
   function restoreSession(): boolean {
@@ -127,6 +148,70 @@ export const useAuthStore = defineStore('auth', () => {
     return false
   }
 
+  // validates the stored session against the server
+  // if the token is invalid or expired, clears all stale state
+  async function validateSession(): Promise<boolean> {
+    const token = getAccessToken()
+    const baseUrl = getBaseUrl()
+
+    // no token or server configured, nothing to validate
+    if (!token || !baseUrl) {
+      return false
+    }
+
+    try {
+      // make a lightweight authenticated request to check token validity
+      // using the users endpoint which requires auth
+      await apiClient.get('/auth/users')
+      return true
+    } catch (e) {
+      const axiosError = e as import('axios').AxiosError
+
+      // 401 means the token is invalid/expired and refresh also failed
+      // (the interceptor already tried to refresh)
+      if (axiosError.response?.status === 401) {
+        clearStaleSession()
+        return false
+      }
+
+      // network errors might just mean server is down, not that session is invalid
+      // only clear session for auth-specific failures
+      if (axiosError.response?.status === 403) {
+        clearStaleSession()
+        return false
+      }
+
+      // for other errors (network, timeout), keep the session intact
+      // the user might just be offline temporarily
+      return false
+    }
+  }
+
+  // clears all stale session data including cookies
+  function clearStaleSession(): void {
+    // clear tokens from localStorage (also clears document.cookie)
+    clearTokens()
+
+    // clear electron's internal cookie store via IPC
+    if (window.api?.clearSessionCookies) {
+      window.api.clearSessionCookies()
+    }
+
+    // clear user data
+    localStorage.removeItem('swing_user')
+
+    // clear any cached data that might be stale
+    localStorage.removeItem('player_queue')
+    localStorage.removeItem('swing_albums_cache')
+    localStorage.removeItem('swing_artists_cache')
+
+    // reset store state but preserve server url so user can re-login
+    user.value = null
+    users.value = []
+    hasToken.value = false
+    error.value = null
+  }
+
   return {
     // State
     user,
@@ -143,8 +228,10 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     loginWithQrCode,
     validateServer,
+    validateSession,
     logout,
     clearServer,
+    reset,
     restoreSession
   }
 })

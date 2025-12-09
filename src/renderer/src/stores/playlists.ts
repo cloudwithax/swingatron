@@ -139,6 +139,19 @@ export const usePlaylistStore = defineStore('playlists', () => {
     }
   }
 
+  // update track favorite status without making an api call (for cross-store sync)
+  function updateTrackFavorite(trackhash: string, isFavorite: boolean): void {
+    if (currentPlaylist.value) {
+      const trackIndex = currentPlaylist.value.tracks.findIndex((t) => t.trackhash === trackhash)
+      if (trackIndex !== -1) {
+        currentPlaylist.value.tracks[trackIndex] = {
+          ...currentPlaylist.value.tracks[trackIndex],
+          is_favorite: isFavorite
+        }
+      }
+    }
+  }
+
   function clearDetail(): void {
     currentPlaylist.value = null
     detailError.value = null
@@ -154,6 +167,15 @@ export const usePlaylistStore = defineStore('playlists', () => {
     if (index !== -1) {
       playlists.value[index] = updated
     }
+  }
+
+  function reset(): void {
+    playlists.value = []
+    isLoading.value = false
+    error.value = null
+    currentPlaylist.value = null
+    isLoadingDetail.value = false
+    detailError.value = null
   }
 
   return {
@@ -178,8 +200,10 @@ export const usePlaylistStore = defineStore('playlists', () => {
     togglePin,
     addTracksToPlaylist,
     removeTrackFromPlaylist,
+    updateTrackFavorite,
     clearDetail,
     refresh,
-    updatePlaylistInList
+    updatePlaylistInList,
+    reset
   }
 })

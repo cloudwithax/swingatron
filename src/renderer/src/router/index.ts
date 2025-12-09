@@ -114,13 +114,30 @@ const router = createRouter({
   routes
 })
 
+// track whether we've validated the session on startup
+let hasValidatedSession = false
+
 // Navigation guard
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
 
-  // Try to restore session on app load
+  // try to restore session from local storage on app load
   if (!authStore.isAuthenticated) {
     authStore.restoreSession()
+  }
+
+  // validate the session against the server on first navigation
+  // this ensures stale tokens are cleared before the user sees the app
+  if (!hasValidatedSession && authStore.isAuthenticated) {
+    hasValidatedSession = true
+    const isValid = await authStore.validateSession()
+
+    if (!isValid) {
+      // session was invalid, redirect to login
+      // validateSession already cleared the stale state
+      next('/login')
+      return
+    }
   }
 
   const requiresAuth = to.meta.requiresAuth !== false

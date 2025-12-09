@@ -127,6 +127,22 @@ export const useArtistStore = defineStore('artists', () => {
     loadArtists(true)
   }
 
+  function reset(): void {
+    artists.value = []
+    isLoading.value = false
+    error.value = null
+    totalArtists.value = 0
+    currentPage.value = 0
+    pageSize.value = 50
+    sortBy.value = 'name'
+    sortReverse.value = false
+    currentArtist.value = null
+    similarArtists.value = []
+    isLoadingDetail.value = false
+    detailError.value = null
+    artistStack.value = []
+  }
+
   return {
     // State
     artists,
@@ -152,6 +168,7 @@ export const useArtistStore = defineStore('artists', () => {
     setSortOption,
     toggleArtistFavorite,
     clearDetail,
-    refresh
+    refresh,
+    reset
   }
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePlayerStore } from '@/stores/player'
@@ -24,6 +24,69 @@ const isSidebarCollapsed = ref(false)
 function toggleSidebar(): void {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
+
+// global keyboard shortcuts handler
+function handleGlobalKeyDown(event: KeyboardEvent): void {
+  // skip if focus is on an input element (text fields, search boxes, etc.)
+  const target = event.target as HTMLElement
+  const isInputElement =
+    target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+
+  if (isInputElement) return
+
+  // skip if nowplaying view is active (it has its own keyboard handler)
+  if (route.path === '/nowplaying') return
+
+  // only handle shortcuts if there's a track loaded
+  if (!playerStore.currentTrack) return
+
+  switch (event.key) {
+    case ' ':
+      // space - toggle play/pause
+      event.preventDefault()
+      playerStore.playPause()
+      break
+
+    case 'ArrowLeft':
+      // seek backward 10 seconds
+      event.preventDefault()
+      playerStore.seekTo(Math.max(0, playerStore.currentPosition - 10000))
+      break
+
+    case 'ArrowRight':
+      // seek forward 10 seconds
+      event.preventDefault()
+      playerStore.seekTo(Math.min(playerStore.duration, playerStore.currentPosition + 10000))
+      break
+
+    case 'ArrowUp':
+      // volume up
+      event.preventDefault()
+      playerStore.setVolume(Math.min(1, playerStore.volume + 0.1))
+      break
+
+    case 'ArrowDown':
+      // volume down
+      event.preventDefault()
+      playerStore.setVolume(Math.max(0, playerStore.volume - 0.1))
+      break
+
+    case 'm':
+    case 'M':
+      // toggle mute
+      event.preventDefault()
+      playerStore.toggleMute()
+      break
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleGlobalKeyDown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleGlobalKeyDown)
+})
 </script>
 
 <template>

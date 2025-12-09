@@ -1,13 +1,25 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Folder } from '@/api/types'
 
-defineProps<{
+const props = defineProps<{
   folder: Folder
 }>()
 
 const emit = defineEmits<{
   click: [folder: Folder]
 }>()
+
+const folderCount = computed(() => {
+  if (typeof props.folder.foldercount === 'number') return props.folder.foldercount
+  if (typeof props.folder.count === 'number') return props.folder.count
+  return 0
+})
+
+const trackCount = computed(() => {
+  const count = props.folder.trackcount ?? props.folder.count
+  return typeof count === 'number' ? count : 0
+})
 
 function handleClick(folder: Folder) {
   emit('click', folder)
@@ -26,9 +38,9 @@ function handleClick(folder: Folder) {
     <div class="folder-info">
       <div class="folder-name">{{ folder.name }}</div>
       <div class="folder-meta">
-        <span v-if="folder.folderCount > 0">{{ folder.folderCount }} folders</span>
-        <span v-if="folder.folderCount > 0 && folder.trackCount > 0"> • </span>
-        <span v-if="folder.trackCount > 0">{{ folder.trackCount }} tracks</span>
+        <span v-if="folderCount > 0">{{ folderCount }} folders</span>
+        <span v-if="folderCount > 0 && trackCount > 0"> • </span>
+        <span v-if="trackCount > 0">{{ trackCount }} tracks</span>
       </div>
     </div>
     <div class="folder-arrow">

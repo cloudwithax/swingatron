@@ -24,6 +24,29 @@ const isCurrentTrack = computed(() => {
   return playerStore.currentTrack?.trackhash === props.track.trackhash
 })
 
+const isPendingTrack = computed(() => {
+  return playerStore.pendingTrackHash === props.track.trackhash
+})
+
+// this track is "active" (highlighted) only if:
+// - it's the pending track (takes priority), OR
+// - it's the current track AND there's no pending track
+const isActive = computed(() => {
+  return isPendingTrack.value || (isCurrentTrack.value && !playerStore.pendingTrackHash)
+})
+
+// this track shows loading indicator if it's the pending track
+const isTrackLoading = computed(() => {
+  return isPendingTrack.value
+})
+
+// show playing/pause indicator only if:
+// - this IS the current track AND
+// - there is NO pending track (otherwise we're switching away from this track)
+const showPlayingIndicator = computed(() => {
+  return isCurrentTrack.value && !playerStore.pendingTrackHash
+})
+
 const thumbnailUrl = computed(() => {
   return props.track.image ? getThumbnailUrl(props.track.image, 'small') : ''
 })
@@ -45,6 +68,11 @@ const qualityClass = computed(() => {
   if (bitrate >= 1024) return 'quality-lossless'
   if (bitrate >= 321) return 'quality-hires'
   return ''
+})
+
+// lossless quality indicator (bitrate >= 1024 kbps)
+const isLossless = computed(() => {
+  return props.track.bitrate >= 1024
 })
 
 const isFavorite = computed(() => {
@@ -78,16 +106,16 @@ function handleFavorite(event: MouseEvent) {
 <template>
   <div
     class="track-item"
-    :class="{ 'is-current': isCurrentTrack, 'is-playing': isCurrentTrack && playerStore.isPlaying }"
+    :class="{ 'is-current': isActive, 'is-playing': showPlayingIndicator && playerStore.isPlaying }"
     @dblclick="handleClick"
     @contextmenu="handleContextMenu"
   >
     <!-- Track Number or Artwork -->
     <div class="track-index">
       <button class="hover-play" aria-label="Play/Pause" @click.stop="handleHoverClick">
-        <div v-if="isCurrentTrack && playerStore.isLoading" class="spinner small"></div>
+        <div v-if="isTrackLoading" class="spinner small"></div>
         <svg
-          v-else-if="!(isCurrentTrack && playerStore.isPlaying)"
+          v-else-if="!(showPlayingIndicator && playerStore.isPlaying)"
           viewBox="0 0 24 24"
           fill="currentColor"
         >
@@ -101,8 +129,7 @@ function handleFavorite(event: MouseEvent) {
         <img :src="thumbnailUrl" :alt="track.title" class="track-artwork" />
       </template>
       <template v-else-if="index !== undefined">
-        <div v-if="isCurrentTrack && playerStore.isLoading" class="spinner small"></div>
-        <span v-else-if="!isCurrentTrack" class="track-number">{{ index + 1 }}</span>
+        <span v-if="!showPlayingIndicator" class="track-number">{{ index + 1 }}</span>
         <span v-else class="playing-indicator">
           <span class="bar"></span>
           <span class="bar"></span>
@@ -113,7 +140,10 @@ function handleFavorite(event: MouseEvent) {
 
     <!-- Track Info -->
     <div class="track-info">
-      <div class="track-title" :class="qualityClass">{{ track.title }}</div>
+      <div class="track-title-row">
+        <span class="track-title" :class="qualityClass">{{ track.title }}</span>
+        <span v-if="isLossless" class="lossless-badge" title="Lossless Audio Quality">M</span>
+      </div>
       <div class="track-meta">
         <span class="track-artist">{{ artistNames }}</span>
         <template v-if="showAlbum && track.album">
@@ -226,8 +256,20 @@ function handleFavorite(event: MouseEvent) {
   pointer-events: auto; /* interactive when visible */
 }
 
+/* always show hover-play button when loading to display spinner */
+.hover-play:has(.spinner) {
+  opacity: 1;
+  pointer-events: none; /* keep non-interactive when loading */
+}
+
 /* Hide the number when hovering so only the play icon shows */
 .track-item:hover .track-number {
+  opacity: 0;
+}
+
+/* hide number/indicator when loading spinner is showing */
+.track-index:has(.hover-play .spinner) .track-number,
+.track-index:has(.hover-play .spinner) .playing-indicator {
   opacity: 0;
 }
 
@@ -352,6 +394,13 @@ function handleFavorite(event: MouseEvent) {
   min-width: 0;
 }
 
+.track-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .track-title {
   font-size: 14px;
   font-weight: 500;
@@ -359,6 +408,21 @@ function handleFavorite(event: MouseEvent) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.lossless-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #1a1a1a;
+  background-color: #d4a853;
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .track-title.quality-hires {

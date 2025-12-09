@@ -23,7 +23,28 @@ const api = {
   },
   onMediaPrevious: (callback: () => void): void => {
     ipcRenderer.on('media-previous', () => callback())
-  }
+  },
+  // discord rpc methods
+  updateDiscordPresence: (data: {
+    trackTitle: string
+    artist: string
+    album: string
+    duration: number
+    position: number
+    isPaused: boolean
+    artworkUrl?: string
+    imageHash?: string
+  }): void => {
+    ipcRenderer.send('discord-rpc-update', data)
+  },
+  setDiscordIdle: (): void => {
+    ipcRenderer.send('discord-rpc-idle')
+  },
+  clearDiscordPresence: (): void => {
+    ipcRenderer.send('discord-rpc-clear')
+  },
+  // session management
+  clearSessionCookies: (): Promise<boolean> => ipcRenderer.invoke('clear-session-cookies')
 }
 
 // use `contextBridge` apis to expose electron apis to
@@ -33,8 +54,8 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
-  } catch (error) {
-    console.error(error)
+  } catch {
+    // failed to expose api to main world
   }
 } else {
   // @ts-ignore (define in dts)

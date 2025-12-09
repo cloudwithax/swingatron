@@ -2,13 +2,16 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { usePlayerStore } from '@/stores/player'
 import { getBaseUrl, triggerLibraryScan } from '@/api/client'
 import { fetchSettings } from '@/api/settings'
 import { fetchLastfmToken, createLastfmSession, deleteLastfmSession } from '@/api/lastfm'
 import { useToast } from '@/composables/useToast'
+import { resetAppState } from '@/utils/resetAppState'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const playerStore = usePlayerStore()
 const toast = useToast()
 
 // scan state
@@ -25,6 +28,7 @@ const lastfmSessionKey = ref('')
 const lastfmToken = ref('')
 const lastfmIntegrationStarted = ref(false)
 const isLastfmBusy = ref(false)
+const isResetting = ref(false)
 
 // Version info
 const appVersion = ref('1.0.0')
@@ -86,16 +90,42 @@ function applyTheme(): void {
   }
 }
 
-function handleLogout(): void {
-  authStore.logout()
-  router.push('/login')
-}
-
 function handleClearCache(): void {
   // Clear any cached data
   localStorage.removeItem('swing_albums_cache')
   localStorage.removeItem('swing_artists_cache')
   toast.show('Cache cleared successfully', { type: 'success' })
+}
+
+async function handleLogout(): Promise<void> {
+  if (isResetting.value) return
+
+  isResetting.value = true
+  try {
+    resetAppState({ preserveServer: true })
+    toast.show('Signed out', { type: 'success' })
+    router.push('/login')
+  } catch {
+    toast.show('Failed to sign out', { type: 'error' })
+  } finally {
+    isResetting.value = false
+  }
+}
+
+async function handleChangeServer(): Promise<void> {
+  if (isResetting.value) return
+
+  isResetting.value = true
+  try {
+    resetAppState()
+    serverUrl.value = ''
+    toast.show('Server cleared. Configure again.', { type: 'success' })
+    router.push('/login')
+  } catch {
+    toast.show('Failed to reset server', { type: 'error' })
+  } finally {
+    isResetting.value = false
+  }
 }
 
 async function handleScanLibrary(): Promise<void> {
@@ -246,7 +276,16 @@ function goBack(): void {
         </div>
       </div>
 
-      <button class="settings-btn danger" @click="handleLogout">
+      <button class="settings-btn danger" :disabled="isResetting" @click="handleChangeServer">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm-6 8c0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3c-3.31 0-6-2.69-6-6z"
+          />
+        </svg>
+        Change Server
+      </button>
+
+      <button class="settings-btn danger" :disabled="isResetting" @click="handleLogout">
         <svg viewBox="0 0 24 24" fill="currentColor">
           <path
             d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"
@@ -307,6 +346,28 @@ function goBack(): void {
         </div>
         <label class="toggle">
           <input v-model="showBitrate" type="checkbox" @change="saveSettings" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Playback Section -->
+    <section class="settings-section">
+      <h2 class="section-title">Playback</h2>
+
+      <div class="settings-item">
+        <div class="settings-item-info">
+          <div class="settings-item-label">Gapless playback</div>
+          <div class="settings-item-description">
+            Seamless transitions between tracks without gaps
+          </div>
+        </div>
+        <label class="toggle">
+          <input
+            :checked="playerStore.gaplessPlayback"
+            type="checkbox"
+            @change="playerStore.toggleGaplessPlayback()"
+          />
           <span class="toggle-slider"></span>
         </label>
       </div>

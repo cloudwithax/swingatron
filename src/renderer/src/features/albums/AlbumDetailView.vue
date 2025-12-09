@@ -28,7 +28,12 @@ const albumHash = computed(() => route.params.hash as string)
 
 const album = computed(() => albumData.value?.info)
 const tracks = computed(() => albumData.value?.tracks || [])
-const versions = computed(() => albumData.value?.info.versions || [])
+const versions = computed<Album[]>(() => {
+  const rawVersions = (albumData.value?.info.versions ?? []) as unknown[]
+  return rawVersions.filter((version): version is Album => {
+    return typeof version === 'object' && version !== null && 'albumhash' in version
+  })
+})
 const artistAlbums = computed(() => [] as Album[])
 const copyright = computed(() => albumData.value?.copyright)
 
@@ -104,8 +109,7 @@ async function loadAlbum() {
 
   try {
     albumData.value = await getAlbumWithInfo(albumHash.value)
-  } catch (err) {
-    console.error('Failed to load album:', err)
+  } catch {
     error.value = 'Failed to load album'
   } finally {
     isLoading.value = false
@@ -138,8 +142,8 @@ async function handleTrackFavorite(track: Track) {
     if (trackInList) {
       trackInList.is_favorite = !trackInList.is_favorite
     }
-  } catch (err) {
-    console.error('Failed to toggle favorite:', err)
+  } catch {
+    // failed to toggle favorite
   }
 }
 
@@ -177,8 +181,8 @@ async function handleAlbumPlay(targetAlbum: Album): Promise<void> {
       const sortedTracks = sortAlbumTracks(targetAlbumData.tracks)
       playerStore.setQueue(sortedTracks, 0, false, `al:${targetAlbum.albumhash}`)
     }
-  } catch (err) {
-    console.error('failed to fetch album tracks:', err)
+  } catch {
+    // failed to fetch album tracks
   } finally {
     loadingAlbumHash.value = null
   }
@@ -194,8 +198,8 @@ async function handleToggleAlbumFavorite(): Promise<void> {
     if (albumData.value?.info) {
       albumData.value.info.is_favorite = newState
     }
-  } catch (err) {
-    console.error('Failed to toggle album favorite:', err)
+  } catch {
+    // failed to toggle album favorite
   }
 }
 

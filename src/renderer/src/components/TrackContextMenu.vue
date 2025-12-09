@@ -75,8 +75,8 @@ async function handlePlaylistHover(): Promise<void> {
     isLoadingPlaylists.value = true
     try {
       playlists.value = await getAllPlaylists(true)
-    } catch (error) {
-      console.error('Failed to fetch playlists:', error)
+    } catch {
+      // failed to fetch playlists
     } finally {
       isLoadingPlaylists.value = false
     }

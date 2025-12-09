@@ -80,8 +80,7 @@ async function loadArtist() {
     ])
     artistInfo.value = info
     similarArtists.value = similar
-  } catch (err) {
-    console.error('Failed to load artist:', err)
+  } catch {
     error.value = 'Failed to load artist'
   } finally {
     isLoading.value = false
@@ -136,8 +135,8 @@ async function handleAlbumPlay(album: Album): Promise<void> {
       const sortedTracks = sortAlbumTracks(albumData.tracks)
       playerStore.setQueue(sortedTracks, 0, false, `al:${album.albumhash}`)
     }
-  } catch (err) {
-    console.error('failed to fetch album tracks:', err)
+  } catch {
+    // failed to fetch album tracks
   } finally {
     loadingAlbumHash.value = null
   }
@@ -153,8 +152,8 @@ async function handleSimilarArtistPlay(artist: SimilarArtist): Promise<void> {
     if (artistData?.tracks && artistData.tracks.length > 0) {
       playerStore.setQueue(artistData.tracks, 0, false, `ar:${artist.artisthash}`)
     }
-  } catch (err) {
-    console.error('failed to fetch artist tracks:', err)
+  } catch {
+    // failed to fetch artist tracks
   }
 }
 
