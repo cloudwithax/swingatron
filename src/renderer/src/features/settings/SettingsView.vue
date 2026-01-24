@@ -3,7 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePlayerStore } from '@/stores/player'
-import { getBaseUrl, triggerLibraryScan } from '@/api/client'
+import { getBaseUrl, triggerLibraryScan, type AudioNormalizationLevel } from '@/api/client'
 import { fetchSettings } from '@/api/settings'
 import { fetchLastfmToken, createLastfmSession, deleteLastfmSession } from '@/api/lastfm'
 import { useToast } from '@/composables/useToast'
@@ -29,6 +29,12 @@ const lastfmToken = ref('')
 const lastfmIntegrationStarted = ref(false)
 const isLastfmBusy = ref(false)
 const isResetting = ref(false)
+const normalizationLevel = computed({
+  get: () => playerStore.normalizationLevel,
+  set: (value: AudioNormalizationLevel) => {
+    playerStore.setNormalizationLevel(value)
+  }
+})
 
 // Version info
 const appVersion = ref('1.0.0')
@@ -370,6 +376,35 @@ function goBack(): void {
           />
           <span class="toggle-slider"></span>
         </label>
+      </div>
+
+      <div class="settings-item">
+        <div class="settings-item-info">
+          <div class="settings-item-label">Autoplay</div>
+          <div class="settings-item-description">
+            Automatically discover and play similar tracks when the queue ends
+          </div>
+        </div>
+        <label class="toggle">
+          <input
+            :checked="playerStore.autoplayEnabled"
+            type="checkbox"
+            @change="playerStore.toggleAutoplay()"
+          />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="settings-item">
+        <div class="settings-item-info">
+          <div class="settings-item-label">Audio normalization</div>
+          <div class="settings-item-description">Balance track loudness across playback</div>
+        </div>
+        <select v-model="normalizationLevel" class="settings-select">
+          <option value="quiet">Quiet</option>
+          <option value="normal">Normal</option>
+          <option value="loud">Loud</option>
+        </select>
       </div>
     </section>
 

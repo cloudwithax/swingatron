@@ -1,11 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { usePlayerStore } from '@/stores/player'
 import { getThumbnailUrl } from '@/api/client'
+import { getPlaceholderDataUrl } from '@/utils/images'
 
 const playerStore = usePlayerStore()
 
-// Accept fullscreen prop to adjust styling
+const imageLoadErrors = ref(new Set<string>())
+
+function getDisplayUrl(trackHash: string, imageUrl: string): string {
+  if (imageLoadErrors.value.has(trackHash)) {
+    return getPlaceholderDataUrl('track')
+  }
+  return imageUrl
+}
+
+function handleImageError(trackHash: string) {
+  imageLoadErrors.value.add(trackHash)
+}
+
 defineProps<{
   fullscreen?: boolean
 }>()
@@ -14,13 +27,11 @@ const emit = defineEmits<{
   close: []
 }>()
 
-// Get upcoming tracks (after current)
 const upcomingTracks = computed(() => {
   const currentIdx = playerStore.currentIndex
   return playerStore.queue.slice(currentIdx + 1)
 })
 
-// Get previous tracks (before current)
 const previousTracks = computed(() => {
   const currentIdx = playerStore.currentIndex
   return playerStore.queue.slice(0, currentIdx)
@@ -76,9 +87,20 @@ function formatDuration(ms: number): string {
           <div class="queue-item now-playing">
             <div class="item-artwork">
               <img
-                v-if="playerStore.currentTrack.image"
-                :src="getThumbnailUrl(playerStore.currentTrack.image, 'small')"
-                :alt="playerStore.currentTrack.title"
+                v-if="playerStore.currentTrack?.image"
+                :src="
+                  playerStore.currentTrack
+                    ? getDisplayUrl(
+                        playerStore.currentTrack.trackhash,
+                        getThumbnailUrl(playerStore.currentTrack.image, 'small')
+                      )
+                    : ''
+                "
+                :alt="playerStore.currentTrack?.title || ''"
+                @error="
+                  () =>
+                    playerStore.currentTrack && handleImageError(playerStore.currentTrack.trackhash)
+                "
               />
               <div v-else class="artwork-placeholder">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -118,8 +140,9 @@ function formatDuration(ms: number): string {
             <div class="item-artwork">
               <img
                 v-if="track.image"
-                :src="getThumbnailUrl(track.image, 'small')"
+                :src="getDisplayUrl(track.trackhash, getThumbnailUrl(track.image, 'small'))"
                 :alt="track.title"
+                @error="() => handleImageError(track.trackhash)"
               />
               <div v-else class="artwork-placeholder">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -165,8 +188,9 @@ function formatDuration(ms: number): string {
             <div class="item-artwork">
               <img
                 v-if="track.image"
-                :src="getThumbnailUrl(track.image, 'small')"
+                :src="getDisplayUrl(track.trackhash, getThumbnailUrl(track.image, 'small'))"
                 :alt="track.title"
+                @error="() => handleImageError(track.trackhash)"
               />
               <div v-else class="artwork-placeholder">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -209,7 +233,7 @@ function formatDuration(ms: number): string {
   left: 0;
   right: 0;
   bottom: 90px;
-  z-index: 150;
+  z-index: 250;
   display: flex;
   justify-content: flex-end;
 }
@@ -217,7 +241,6 @@ function formatDuration(ms: number): string {
 .queue-panel.fullscreen {
   top: 0;
   bottom: 0;
-  /* fullscreen covers everything including titlebar */
 }
 
 .queue-backdrop {

@@ -97,15 +97,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout(): void {
-    reset({ preserveServer: true })
+  async function logout(): Promise<void> {
+    await reset({ preserveServer: true })
   }
 
-  function clearServer(): void {
-    reset()
+  async function clearServer(): Promise<void> {
+    await reset()
   }
 
-  function reset(options?: { preserveServer?: boolean }): void {
+  async function reset(options?: { preserveServer?: boolean }): Promise<void> {
     const preserveServer = options?.preserveServer ?? false
     const existingBaseUrl = getBaseUrl()
 
@@ -129,7 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     // clear electron's internal cookie store via IPC
     if (window.api?.clearSessionCookies) {
-      window.api.clearSessionCookies()
+      await window.api.clearSessionCookies()
     }
 
     // clear any cached data that might be stale
@@ -181,14 +181,14 @@ export const useAuthStore = defineStore('auth', () => {
       // 401 means the token is invalid/expired and refresh also failed
       // (the interceptor already tried to refresh)
       if (axiosError.response?.status === 401) {
-        clearStaleSession()
+        await clearStaleSession()
         return false
       }
 
       // network errors might just mean server is down, not that session is invalid
       // only clear session for auth-specific failures
       if (axiosError.response?.status === 403) {
-        clearStaleSession()
+        await clearStaleSession()
         return false
       }
 
@@ -199,13 +199,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // clears all stale session data including cookies
-  function clearStaleSession(): void {
+  async function clearStaleSession(): Promise<void> {
     // clear tokens from localStorage (also clears document.cookie)
     clearTokens()
 
     // clear electron's internal cookie store via IPC
     if (window.api?.clearSessionCookies) {
-      window.api.clearSessionCookies()
+      await window.api.clearSessionCookies()
     }
 
     // clear user data

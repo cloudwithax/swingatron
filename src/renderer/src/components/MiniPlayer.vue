@@ -8,6 +8,7 @@ import QueuePanel from './QueuePanel.vue'
 
 const router = useRouter()
 const playerStore = usePlayerStore()
+const imageLoadError = ref(false)
 
 // debounce for next/previous buttons to prevent loading tracks the user is skipping past
 const SKIP_DEBOUNCE_MS = 100
@@ -92,6 +93,10 @@ const thumbnailUrl = computed(() => {
     ? getThumbnailUrl(playerStore.currentTrack.image, 'small')
     : ''
 })
+
+function handleImageError() {
+  imageLoadError.value = true
+}
 
 const artists = computed(() => {
   const track = playerStore.currentTrack
@@ -202,12 +207,13 @@ function handleVolumeChange(event: Event) {
     <div class="left-section">
       <div class="artwork-container" @click="goToAlbum">
         <img
-          v-if="thumbnailUrl"
+          v-if="thumbnailUrl && !imageLoadError"
           :src="thumbnailUrl"
           :alt="playerStore.currentTrack.title"
           class="artwork"
+          @error="handleImageError"
         />
-        <div v-else class="artwork-placeholder">
+        <div v-if="!thumbnailUrl || imageLoadError" class="artwork-placeholder">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"

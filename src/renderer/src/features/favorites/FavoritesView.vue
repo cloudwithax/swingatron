@@ -1,34 +1,98 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFavoritesStore } from '@/stores/favorites'
 import { usePlayerStore } from '@/stores/player'
 import { getAlbumWithInfo } from '@/api/albums'
 import { getArtistInfo } from '@/api/artists'
+import { toggleFavorite } from '@/api/favorites'
 import type { Track, Album, Artist } from '@/api/types'
 import { sortAlbumTracks } from '@/utils/tracks'
 import TrackItem from '@/components/TrackItem.vue'
 import AlbumItem from '@/components/AlbumItem.vue'
 import ArtistItem from '@/components/ArtistItem.vue'
+import CollageImage from '@/components/CollageImage.vue'
+import TrackContextMenu from '@/components/TrackContextMenu.vue'
 
 const router = useRouter()
 const favoritesStore = useFavoritesStore()
 const playerStore = usePlayerStore()
 
 const loadingAlbumHash = ref<string | null>(null)
+const contextMenuTrack = ref<Track | null>(null)
+const contextMenuVisible = ref(false)
+const contextMenuPosition = ref({ x: 0, y: 0 })
 
 onMounted(() => {
   favoritesStore.loadFavorites()
 })
 
+// extract unique images from tracks for the collage
+const collageImages = computed(() => {
+  const seenImages = new Set<string>()
+  const images: string[] = []
+
+  for (const track of favoritesStore.tracks) {
+    if (track.image && !seenImages.has(track.image)) {
+      seenImages.add(track.image)
+      images.push(track.image)
+      if (images.length >= 4) break
+    }
+  }
+  return images
+})
+
+const totalDuration = computed(() => {
+  const total = favoritesStore.tracks.reduce((sum, track) => sum + track.duration, 0)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  if (hours > 0) {
+    return `${hours} hr ${minutes} min`
+  }
+  return `${minutes} min`
+})
+
+function handlePlayAll(): void {
+  if (favoritesStore.tracks.length > 0) {
+    playerStore.setQueue(favoritesStore.tracks, 0, false, 'favorite')
+  }
+}
+
+function handleShufflePlay(): void {
+  if (favoritesStore.tracks.length > 0) {
+    playerStore.setQueue(favoritesStore.tracks, 0, true, 'favorite')
+  }
+}
+
 function handleTrackPlay(track: Track): void {
-  // play track with full favorites track list as queue
   const trackIndex = favoritesStore.tracks.findIndex((t) => t.trackhash === track.trackhash)
   playerStore.setQueue(favoritesStore.tracks, trackIndex >= 0 ? trackIndex : 0, false, 'favorite')
 }
 
-function handleTrackFavorite(track: Track): void {
-  favoritesStore.removeTrackFavorite(track)
+async function handleTrackFavorite(track: Track): Promise<void> {
+  try {
+    await toggleFavorite(track.trackhash, 'track', false)
+    favoritesStore.updateTrackFavorite(track.trackhash, false)
+  } catch {
+    // failed to toggle favorite
+  }
+}
+
+function handleTrackMenu(track: Track, event: MouseEvent): void {
+  contextMenuTrack.value = track
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY }
+  contextMenuVisible.value = true
+}
+
+function handleContextMenuClose(): void {
+  contextMenuVisible.value = false
+  contextMenuTrack.value = null
+}
+
+function handleFavoriteToggled(track: Track, isFavorite: boolean): void {
+  if (!isFavorite) {
+    favoritesStore.updateTrackFavorite(track.trackhash, false)
+  }
 }
 
 function handleAlbumClick(album: Album): void {
@@ -68,43 +132,6 @@ async function handleArtistPlay(artist: Artist): Promise<void> {
 
 <template>
   <div class="favorites-view">
-    <div class="view-header">
-      <h1 class="view-title">Favorites</h1>
-
-      <div class="tab-options">
-        <button
-          class="tab-chip"
-          :class="{ active: favoritesStore.activeTab === 'tracks' }"
-          @click="favoritesStore.setActiveTab('tracks')"
-        >
-          Tracks
-          <span v-if="favoritesStore.count.tracks > 0" class="count-badge">{{
-            favoritesStore.count.tracks
-          }}</span>
-        </button>
-        <button
-          class="tab-chip"
-          :class="{ active: favoritesStore.activeTab === 'albums' }"
-          @click="favoritesStore.setActiveTab('albums')"
-        >
-          Albums
-          <span v-if="favoritesStore.count.albums > 0" class="count-badge">{{
-            favoritesStore.count.albums
-          }}</span>
-        </button>
-        <button
-          class="tab-chip"
-          :class="{ active: favoritesStore.activeTab === 'artists' }"
-          @click="favoritesStore.setActiveTab('artists')"
-        >
-          Artists
-          <span v-if="favoritesStore.count.artists > 0" class="count-badge">{{
-            favoritesStore.count.artists
-          }}</span>
-        </button>
-      </div>
-    </div>
-
     <!-- Loading state -->
     <div v-if="favoritesStore.isLoading" class="loading">
       <div class="spinner"></div>
@@ -128,51 +155,139 @@ async function handleArtistPlay(artist: Artist): Promise<void> {
       <p>Start adding tracks, albums, and artists to your favorites</p>
     </div>
 
-    <!-- Tracks Tab -->
-    <div v-else-if="favoritesStore.activeTab === 'tracks'" class="tracks-list">
-      <div v-if="favoritesStore.tracks.length === 0" class="empty-tab">
-        <p>No favorite tracks</p>
+    <!-- Favorites content -->
+    <div v-else class="favorites-content">
+      <!-- Header -->
+      <div class="favorites-header">
+        <div class="artwork-container">
+          <CollageImage :images="collageImages" size="large" />
+        </div>
+
+        <div class="favorites-info">
+          <h1 class="favorites-title">Favorites</h1>
+          <p class="favorites-meta">
+            <span v-if="favoritesStore.count.tracks">{{ favoritesStore.count.tracks }} tracks</span>
+            <span v-if="favoritesStore.count.tracks && totalDuration"> • {{ totalDuration }} </span>
+          </p>
+
+          <!-- Action buttons -->
+          <div class="favorites-actions">
+            <button
+              class="btn btn-primary"
+              :disabled="favoritesStore.tracks.length === 0"
+              @click="handlePlayAll"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              Play
+            </button>
+            <button
+              class="btn btn-secondary"
+              :disabled="favoritesStore.tracks.length === 0"
+              @click="handleShufflePlay"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"
+                />
+              </svg>
+              Shuffle
+            </button>
+          </div>
+        </div>
       </div>
-      <TrackItem
-        v-for="(track, index) in favoritesStore.tracks"
-        :key="track.trackhash"
-        :track="track"
-        :index="index"
-        :show-album="true"
-        :show-artwork="true"
-        @play="handleTrackPlay"
-        @favorite="handleTrackFavorite"
-      />
+
+      <!-- Tab selector -->
+      <div class="tab-options">
+        <button
+          class="tab-chip"
+          :class="{ active: favoritesStore.activeTab === 'tracks' }"
+          @click="favoritesStore.setActiveTab('tracks')"
+        >
+          Tracks
+          <span v-if="favoritesStore.count.tracks > 0" class="count-badge">
+            {{ favoritesStore.count.tracks }}
+          </span>
+        </button>
+        <button
+          class="tab-chip"
+          :class="{ active: favoritesStore.activeTab === 'albums' }"
+          @click="favoritesStore.setActiveTab('albums')"
+        >
+          Albums
+          <span v-if="favoritesStore.count.albums > 0" class="count-badge">
+            {{ favoritesStore.count.albums }}
+          </span>
+        </button>
+        <button
+          class="tab-chip"
+          :class="{ active: favoritesStore.activeTab === 'artists' }"
+          @click="favoritesStore.setActiveTab('artists')"
+        >
+          Artists
+          <span v-if="favoritesStore.count.artists > 0" class="count-badge">
+            {{ favoritesStore.count.artists }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Tracks Tab -->
+      <div v-if="favoritesStore.activeTab === 'tracks'" class="track-list">
+        <div v-if="favoritesStore.tracks.length === 0" class="empty-tab">
+          <p>No favorite tracks</p>
+        </div>
+        <TrackItem
+          v-for="(track, index) in favoritesStore.tracks"
+          :key="track.trackhash"
+          :track="track"
+          :index="index"
+          :show-album="true"
+          :show-artwork="true"
+          @play="handleTrackPlay"
+          @menu="handleTrackMenu"
+          @favorite="handleTrackFavorite"
+        />
+      </div>
+
+      <!-- Albums Tab -->
+      <div v-else-if="favoritesStore.activeTab === 'albums'" class="album-grid">
+        <div v-if="favoritesStore.albums.length === 0" class="empty-tab">
+          <p>No favorite albums</p>
+        </div>
+        <AlbumItem
+          v-for="album in favoritesStore.albums"
+          :key="album.albumhash"
+          :album="album"
+          :loading="loadingAlbumHash === album.albumhash"
+          @click="handleAlbumClick"
+          @play="handleAlbumPlay"
+        />
+      </div>
+
+      <!-- Artists Tab -->
+      <div v-else-if="favoritesStore.activeTab === 'artists'" class="artist-grid">
+        <div v-if="favoritesStore.artists.length === 0" class="empty-tab">
+          <p>No favorite artists</p>
+        </div>
+        <ArtistItem
+          v-for="artist in favoritesStore.artists"
+          :key="artist.artisthash"
+          :artist="artist"
+          @click="handleArtistClick"
+          @play="handleArtistPlay"
+        />
+      </div>
     </div>
 
-    <!-- Albums Tab -->
-    <div v-else-if="favoritesStore.activeTab === 'albums'" class="album-grid">
-      <div v-if="favoritesStore.albums.length === 0" class="empty-tab">
-        <p>No favorite albums</p>
-      </div>
-      <AlbumItem
-        v-for="album in favoritesStore.albums"
-        :key="album.albumhash"
-        :album="album"
-        :loading="loadingAlbumHash === album.albumhash"
-        @click="handleAlbumClick"
-        @play="handleAlbumPlay"
-      />
-    </div>
-
-    <!-- Artists Tab -->
-    <div v-else-if="favoritesStore.activeTab === 'artists'" class="artist-grid">
-      <div v-if="favoritesStore.artists.length === 0" class="empty-tab">
-        <p>No favorite artists</p>
-      </div>
-      <ArtistItem
-        v-for="artist in favoritesStore.artists"
-        :key="artist.artisthash"
-        :artist="artist"
-        @click="handleArtistClick"
-        @play="handleArtistPlay"
-      />
-    </div>
+    <!-- Context Menu -->
+    <TrackContextMenu
+      :track="contextMenuTrack"
+      :visible="contextMenuVisible"
+      :position="contextMenuPosition"
+      @close="handleContextMenuClose"
+      @favorite-toggled="handleFavoriteToggled"
+    />
   </div>
 </template>
 
@@ -182,64 +297,6 @@ async function handleArtistPlay(artist: Artist): Promise<void> {
   padding-bottom: 80px;
   height: 100%;
   overflow-y: auto;
-}
-
-.view-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.view-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-on-surface);
-  margin: 0;
-}
-
-.tab-options {
-  display: flex;
-  gap: 8px;
-}
-
-.tab-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  background: transparent;
-  border: 1px solid var(--color-outline);
-  border-radius: 16px;
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.tab-chip:hover {
-  background-color: var(--color-surface-variant);
-}
-
-.tab-chip.active {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
-.count-badge {
-  padding: 2px 6px;
-  font-size: 11px;
-  background-color: var(--color-surface-variant);
-  border-radius: 10px;
-  color: var(--color-on-surface-variant);
-}
-
-.tab-chip.active .count-badge {
-  background-color: var(--color-on-primary);
-  color: var(--color-primary);
 }
 
 .loading,
@@ -293,7 +350,135 @@ async function handleArtistPlay(artist: Artist): Promise<void> {
   }
 }
 
-.tracks-list {
+.favorites-header {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.artwork-container {
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--color-surface-variant);
+  flex-shrink: 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.favorites-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.favorites-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0 0 8px;
+}
+
+.favorites-meta {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  margin: 0 0 16px;
+}
+
+.favorites-meta span {
+  margin-right: 4px;
+}
+
+.favorites-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-secondary {
+  background-color: var(--color-surface-variant);
+  color: var(--color-on-surface);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-outline);
+}
+
+.tab-options {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.tab-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--color-outline);
+  border-radius: 16px;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tab-chip:hover {
+  background-color: var(--color-surface-variant);
+}
+
+.tab-chip.active {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.count-badge {
+  padding: 2px 6px;
+  font-size: 11px;
+  background-color: var(--color-surface-variant);
+  border-radius: 10px;
+  color: var(--color-on-surface-variant);
+}
+
+.tab-chip.active .count-badge {
+  background-color: var(--color-on-primary);
+  color: var(--color-primary);
+}
+
+.track-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -311,17 +496,25 @@ async function handleArtistPlay(artist: Artist): Promise<void> {
   gap: 24px;
 }
 
-.btn {
-  padding: 10px 24px;
-  background-color: var(--color-surface-variant);
-  color: var(--color-on-surface);
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
+/* responsive adjustments */
+@media (max-width: 600px) {
+  .favorites-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
 
-.btn:hover {
-  background-color: var(--color-outline);
+  .artwork-container {
+    width: 160px;
+    height: 160px;
+  }
+
+  .favorites-info {
+    align-items: center;
+  }
+
+  .favorites-title {
+    font-size: 22px;
+  }
 }
 </style>

@@ -1,10 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Track, RepeatMode } from '@/api/types'
-import { fetchAuthenticatedAudioUrl, getThumbnailUrl } from '@/api/client'
+import {
+  fetchAuthenticatedAudioUrl,
+  getThumbnailUrl,
+  type AudioNormalizationLevel
+} from '@/api/client'
 import { logTrackPlayback } from '@/api/playback'
 import { toggleFavorite } from '@/api/favorites'
 import { AudioSource } from '@/utils/audioSource'
+import { getSimilarArtists, getArtistTracks } from '../api/artists'
 
 const STORAGE_KEYS = {
   QUEUE: 'player_queue',
@@ -13,11 +18,20 @@ const STORAGE_KEYS = {
   VOLUME: 'player_volume',
   SHUFFLE_MODE: 'player_shuffle',
   REPEAT_MODE: 'player_repeat',
-  GAPLESS_PLAYBACK: 'player_gapless'
+  GAPLESS_PLAYBACK: 'player_gapless',
+  AUTOPLAY: 'player_autoplay',
+  NORMALIZATION: 'player_normalization'
 }
 
 const MIN_PLAY_DURATION_TO_LOG = 30 // 30 seconds for proper scrobbling
 const SCROBBLE_CHECK_INTERVAL = 1000 // check every second
+
+function parseNormalizationLevel(value: string | null): AudioNormalizationLevel {
+  if (value === 'quiet' || value === 'normal' || value === 'loud') {
+    return value
+  }
+  return 'normal'
+}
 
 interface StoredPlayerState {
   queue: Track[]
@@ -63,6 +77,9 @@ export const usePlayerStore = defineStore('player', () => {
   const shuffleMode = ref(false)
   const repeatMode = ref<RepeatMode>('off')
   const isLoading = ref(false)
+  const normalizationLevel = ref<AudioNormalizationLevel>(
+    parseNormalizationLevel(localStorage.getItem(STORAGE_KEYS.NORMALIZATION))
+  )
   // track hash of the track that is currently being loaded (set immediately on click)
   // this allows the ui to show loading state before the async loadtrack function runs
   const pendingTrackHash = ref<string | null>(null)
@@ -88,6 +105,9 @@ export const usePlayerStore = defineStore('player', () => {
 
   // gapless playback - enabled by default, loaded from storage
   const gaplessPlayback = ref(localStorage.getItem(STORAGE_KEYS.GAPLESS_PLAYBACK) !== 'false')
+
+  // autoplay discovers similar tracks when queue ends - disabled by default
+  const autoplayEnabled = ref(localStorage.getItem(STORAGE_KEYS.AUTOPLAY) === 'true')
 
   // dual audio source for gapless playback
   let audioSource: AudioSource | null = null
@@ -354,6 +374,12 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
+  function setNormalizationLevel(level: AudioNormalizationLevel): void {
+    normalizationLevel.value = level
+    localStorage.setItem(STORAGE_KEYS.NORMALIZATION, level)
+    clearGaplessPreload()
+  }
+
   async function loadTrack(track: Track): Promise<void> {
     if (!audio) initAudio()
 
@@ -400,7 +426,12 @@ export const usePlayerStore = defineStore('player', () => {
       }
 
       // Fetch audio with authentication and create blob URL
-      const blobUrl = await fetchAuthenticatedAudioUrl(track.trackhash, track.filepath, signal)
+      const blobUrl = await fetchAuthenticatedAudioUrl(
+        track.trackhash,
+        track.filepath,
+        normalizationLevel.value,
+        signal
+      )
 
       // check if this load was aborted while waiting for fetch
       if (signal.aborted) {
@@ -495,6 +526,53 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
+  // discovers and queues similar tracks when autoplay is enabled and queue ends
+  async function handleAutoplayDiscovery(): Promise<void> {
+    const artistHash = currentTrack.value?.artists?.[0]?.artisthash
+    if (!artistHash) {
+      await pause()
+      return
+    }
+
+    try {
+      // try to find similar artists first for variety
+      const similarArtists = await getSimilarArtists(artistHash)
+      let tracks: Track[] = []
+
+      if (similarArtists && similarArtists.length > 0) {
+        // pick a random similar artist
+        const randomIndex = Math.floor(Math.random() * similarArtists.length)
+        const randomArtist = similarArtists[randomIndex]
+        tracks = await getArtistTracks(randomArtist.artisthash)
+      } else {
+        // fallback to current artists tracks if no similar artists found
+        tracks = await getArtistTracks(artistHash)
+      }
+
+      // filter out tracks already in the queue to avoid duplicates
+      const existingHashes = new Set(queue.value.map((t) => t.trackhash))
+      const newTracks = tracks.filter((t) => !existingHashes.has(t.trackhash))
+
+      // limit to 20 tracks to avoid excessive queue additions
+      const tracksToAdd = newTracks.slice(0, 20)
+
+      if (tracksToAdd.length > 0) {
+        // add discovered tracks to queue
+        for (const track of tracksToAdd) {
+          addToQueue(track)
+        }
+        // continue playing with the newly added tracks
+        await next()
+      } else {
+        // no new tracks found, just pause
+        await pause()
+      }
+    } catch {
+      // api call failed, gracefully pause instead of crashing
+      await pause()
+    }
+  }
+
   async function next(): Promise<void> {
     if (queue.value.length === 0) return
 
@@ -512,7 +590,11 @@ export const usePlayerStore = defineStore('player', () => {
     } else if (repeatMode.value === 'all') {
       currentIndex.value = 0
     } else {
-      await pause()
+      if (autoplayEnabled.value) {
+        await handleAutoplayDiscovery()
+      } else {
+        await pause()
+      }
       return
     }
 
@@ -780,7 +862,12 @@ export const usePlayerStore = defineStore('player', () => {
     }
 
     try {
-      const blobUrl = await fetchAuthenticatedAudioUrl(track.trackhash, track.filepath, signal)
+      const blobUrl = await fetchAuthenticatedAudioUrl(
+        track.trackhash,
+        track.filepath,
+        normalizationLevel.value,
+        signal
+      )
 
       if (signal.aborted) {
         URL.revokeObjectURL(blobUrl)
@@ -1066,6 +1153,12 @@ export const usePlayerStore = defineStore('player', () => {
       // clear any preloaded data when disabling
       clearGaplessPreload()
     }
+  }
+
+  // toggle autoplay setting
+  function toggleAutoplay(): void {
+    autoplayEnabled.value = !autoplayEnabled.value
+    localStorage.setItem(STORAGE_KEYS.AUTOPLAY, String(autoplayEnabled.value))
   }
 
   // set gapless playback setting explicitly
@@ -1418,6 +1511,8 @@ export const usePlayerStore = defineStore('player', () => {
     showQueue,
     playbackSource,
     gaplessPlayback,
+    autoplayEnabled,
+    normalizationLevel,
     // Computed
     hasNext,
     hasPrevious,
@@ -1432,6 +1527,7 @@ export const usePlayerStore = defineStore('player', () => {
     seekTo,
     setVolume,
     toggleMute,
+    setNormalizationLevel,
     loadTrack,
     playTrack,
     setQueue,
@@ -1452,6 +1548,7 @@ export const usePlayerStore = defineStore('player', () => {
     restorePlayback,
     toggleCurrentTrackFavorite,
     toggleGaplessPlayback,
-    setGaplessPlayback
+    setGaplessPlayback,
+    toggleAutoplay
   }
 })

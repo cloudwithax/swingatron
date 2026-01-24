@@ -191,6 +191,8 @@ apiClient.interceptors.response.use(
   }
 )
 
+export type AudioNormalizationLevel = 'quiet' | 'normal' | 'loud'
+
 // ============================================
 // URL Helpers
 // ============================================
@@ -198,10 +200,15 @@ apiClient.interceptors.response.use(
 /**
  * Get the streaming URL for a track
  */
-export function getTrackStreamUrl(trackHash: string, filepath: string): string {
+export function getTrackStreamUrl(
+  trackHash: string,
+  filepath: string,
+  normalization: AudioNormalizationLevel = 'normal'
+): string {
   const baseUrl = getBaseUrl() || ''
   const encodedPath = encodeURIComponent(filepath)
-  return `${baseUrl}file/${trackHash}/legacy?filepath=${encodedPath}`
+  const normalizationParam = normalization ? `&normalize=${encodeURIComponent(normalization)}` : ''
+  return `${baseUrl}file/${trackHash}/legacy?filepath=${encodedPath}${normalizationParam}`
 }
 
 /**
@@ -211,9 +218,10 @@ export function getTrackStreamUrl(trackHash: string, filepath: string): string {
 export async function fetchAuthenticatedAudioUrl(
   trackHash: string,
   filepath: string,
+  normalization: AudioNormalizationLevel = 'normal',
   signal?: AbortSignal
 ): Promise<string> {
-  const url = getTrackStreamUrl(trackHash, filepath)
+  const url = getTrackStreamUrl(trackHash, filepath, normalization)
   const token = getAccessToken()
 
   const response = await fetch(url, {

@@ -26,6 +26,7 @@ const contextMenuTrack = ref<Track | null>(null)
 const contextMenuVisible = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const loadingAlbumHash = ref<string | null>(null)
+const imageLoadError = ref(false)
 
 const artistHash = computed(() => route.params.hash as string)
 
@@ -39,6 +40,10 @@ const tracks = computed(() => artistInfo.value?.tracks || [])
 const imageUrl = computed(() => {
   return artist.value?.image ? getArtistImageUrl(artist.value.image) : ''
 })
+
+function handleImageError() {
+  imageLoadError.value = true
+}
 
 const formattedDuration = computed(() => {
   if (!artist.value?.duration) return ''
@@ -196,8 +201,14 @@ watch(artistHash, () => {
       <!-- Header -->
       <div class="artist-header">
         <div class="artist-image-container">
-          <img v-if="imageUrl" :src="imageUrl" :alt="artist.name" class="artist-image" />
-          <div v-else class="artist-image-placeholder">
+          <img
+            v-if="imageUrl && !imageLoadError"
+            :src="imageUrl"
+            :alt="artist.name"
+            class="artist-image"
+            @error="handleImageError"
+          />
+          <div v-if="!imageUrl || imageLoadError" class="artist-image-placeholder">
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path
                 d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"

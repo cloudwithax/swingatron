@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, type ComputedRef } from 'vue'
+import { computed, ref, type ComputedRef } from 'vue'
 import type { Album } from '@/api/types'
 import { getThumbnailUrl } from '@/api/client'
 import { usePlayerStore } from '@/stores/player'
@@ -17,10 +17,15 @@ const emit = defineEmits<{
 }>()
 
 const playerStore = usePlayerStore()
+const imageLoadError = ref(false)
 
 const thumbnailUrl: ComputedRef<string> = computed(() => {
   return props.album.image ? getThumbnailUrl(props.album.image) : ''
 })
+
+function handleImageError() {
+  imageLoadError.value = true
+}
 
 const artistNames: ComputedRef<string> = computed(() => {
   return props.album.albumartists?.map((a) => a.name).join(', ') || 'Unknown Artist'
@@ -69,13 +74,14 @@ function handlePlayPause(event: MouseEvent): void {
   <div class="album-item" :class="sizeClass" @click="handleClick">
     <div class="album-artwork-container">
       <img
-        v-if="thumbnailUrl"
+        v-if="thumbnailUrl && !imageLoadError"
         :src="thumbnailUrl"
         :alt="album.title"
         class="album-artwork"
         loading="lazy"
+        @error="handleImageError"
       />
-      <div v-else class="album-artwork-placeholder">
+      <div v-if="!thumbnailUrl || imageLoadError" class="album-artwork-placeholder">
         <svg viewBox="0 0 24 24" fill="currentColor">
           <path
             d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"

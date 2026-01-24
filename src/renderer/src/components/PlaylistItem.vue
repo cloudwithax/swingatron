@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, type ComputedRef } from 'vue'
+import { computed, ref, type ComputedRef } from 'vue'
 import type { Playlist } from '@/api/types'
 import { getThumbnailUrl, getPlaylistImageUrl } from '@/api/client'
 import { usePlayerStore } from '@/stores/player'
+import { getPlaceholderDataUrl } from '@/utils/images'
 
 const props = defineProps<{
   playlist: Playlist
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 }>()
 
 const playerStore = usePlayerStore()
+const imageLoadErrors = ref<Set<number>>(new Set())
 
 // playlist images come from a different path than regular thumbnails
 const thumbnailUrl: ComputedRef<string> = computed(() => {
@@ -40,6 +42,22 @@ const showImageGrid: ComputedRef<boolean> = computed(() => {
 const gridImages: ComputedRef<string[]> = computed(() => {
   if (!props.playlist.images) return []
   return props.playlist.images.slice(0, 4).map((img) => getThumbnailUrl(img.image, 'small'))
+})
+
+const displayGridImages: ComputedRef<string[]> = computed(() => {
+  return gridImages.value.map((url, index) => {
+    if (imageLoadErrors.value.has(index)) {
+      return getPlaceholderDataUrl('album')
+    }
+    return url
+  })
+})
+
+const displayThumbnailUrl: ComputedRef<string> = computed(() => {
+  if (imageLoadErrors.value.has(-1)) {
+    return getPlaceholderDataUrl('album')
+  }
+  return thumbnailUrl.value
 })
 
 const trackCount: ComputedRef<string> = computed(() => {
@@ -76,6 +94,10 @@ function handlePlayPause(event: MouseEvent): void {
     emit('play', props.playlist)
   }
 }
+
+function handleImageError(index: number = -1) {
+  imageLoadErrors.value.add(index)
+}
 </script>
 
 <template>
@@ -84,21 +106,23 @@ function handlePlayPause(event: MouseEvent): void {
       <!-- grid layout for playlists without custom images -->
       <div v-if="showImageGrid" class="playlist-image-grid">
         <img
-          v-for="(img, index) in gridImages"
+          v-for="(_, index) in gridImages"
           :key="index"
-          :src="img"
+          :src="displayGridImages[index]"
           :alt="`${playlist.name} artwork ${index + 1}`"
           class="grid-image"
           loading="lazy"
+          @error="() => handleImageError(index)"
         />
       </div>
       <!-- single image for playlists with custom images -->
       <img
         v-else-if="thumbnailUrl"
-        :src="thumbnailUrl"
+        :src="displayThumbnailUrl"
         :alt="playlist.name"
         class="playlist-artwork"
         loading="lazy"
+        @error="() => handleImageError(-1)"
       />
       <!-- placeholder when no images available -->
       <div v-else class="playlist-artwork-placeholder">

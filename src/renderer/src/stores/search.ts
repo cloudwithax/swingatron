@@ -42,15 +42,12 @@ export const useSearchStore = defineStore('search', () => {
       error.value = null
 
       try {
-        if (activeCategory.value === 'all') {
-          topResults.value = await searchApi.search(searchQuery)
-        } else if (activeCategory.value === 'tracks') {
-          tracks.value = await searchApi.searchTracks(searchQuery)
-        } else if (activeCategory.value === 'albums') {
-          albums.value = await searchApi.searchAlbums(searchQuery)
-        } else if (activeCategory.value === 'artists') {
-          artists.value = await searchApi.searchArtists(searchQuery)
-        }
+        // Always fetch all results for filtering by category
+        const results = await searchApi.search(searchQuery)
+        topResults.value = results
+        tracks.value = results.tracks
+        albums.value = results.albums
+        artists.value = results.artists
       } catch (e) {
         error.value = e instanceof Error ? e.message : 'Search failed'
       } finally {
@@ -69,15 +66,12 @@ export const useSearchStore = defineStore('search', () => {
     error.value = null
 
     try {
-      if (activeCategory.value === 'all') {
-        topResults.value = await searchApi.search(searchQuery)
-      } else if (activeCategory.value === 'tracks') {
-        tracks.value = await searchApi.searchTracks(searchQuery)
-      } else if (activeCategory.value === 'albums') {
-        albums.value = await searchApi.searchAlbums(searchQuery)
-      } else if (activeCategory.value === 'artists') {
-        artists.value = await searchApi.searchArtists(searchQuery)
-      }
+      // Always fetch all results for filtering by category
+      const results = await searchApi.search(searchQuery)
+      topResults.value = results
+      tracks.value = results.tracks
+      albums.value = results.albums
+      artists.value = results.artists
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Search failed'
     } finally {
@@ -87,9 +81,6 @@ export const useSearchStore = defineStore('search', () => {
 
   function setCategory(category: SearchCategory): void {
     activeCategory.value = category
-    if (query.value) {
-      searchImmediate(query.value)
-    }
   }
 
   async function toggleTrackFavorite(track: Track): Promise<void> {

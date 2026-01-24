@@ -6,8 +6,10 @@ import { getThumbnailUrl, getArtistImageUrl } from '@/api/client'
 import { usePlayerStore } from '@/stores/player'
 import { getAlbumWithInfo } from '@/api/albums'
 import { sortAlbumTracks } from '@/utils/tracks'
+import { getPlaceholderDataUrl } from '@/utils/images'
 
 const isLoadingPlay = ref(false)
+const imageLoadError = ref(false)
 
 const props = defineProps<{
   item: HomeItem
@@ -26,6 +28,13 @@ const imageUrl = computed(() => {
   }
   const data = itemData.value as HomeTrackItem | HomeAlbumItem
   return data.image ? getThumbnailUrl(data.image) : ''
+})
+
+const displayUrl = computed(() => {
+  if (imageLoadError.value) {
+    return getPlaceholderDataUrl(isArtist.value ? 'artist' : 'album')
+  }
+  return imageUrl.value
 })
 
 const title = computed(() => {
@@ -140,12 +149,23 @@ async function handlePlayPause(event?: MouseEvent): Promise<void> {
     }
   }
 }
+
+function handleImageError() {
+  imageLoadError.value = true
+}
 </script>
 
 <template>
   <div class="recently-played-item" @click="handleClick">
     <div class="item-artwork-container" :class="{ 'is-artist': isArtist }">
-      <img v-if="imageUrl" :src="imageUrl" :alt="title" class="item-artwork" loading="lazy" />
+      <img
+        v-if="imageUrl"
+        :src="displayUrl"
+        :alt="title"
+        class="item-artwork"
+        loading="lazy"
+        @error="handleImageError"
+      />
       <div v-else class="item-artwork-placeholder">
         <svg v-if="isArtist" viewBox="0 0 24 24" fill="currentColor">
           <path

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Track } from '@/api/types'
 import { getThumbnailUrl } from '@/api/client'
 import { usePlayerStore } from '@/stores/player'
@@ -19,6 +19,11 @@ const emit = defineEmits<{
 }>()
 
 const playerStore = usePlayerStore()
+const imageLoadError = ref(false)
+
+function handleImageError() {
+  imageLoadError.value = true
+}
 
 const isCurrentTrack = computed(() => {
   return playerStore.currentTrack?.trackhash === props.track.trackhash
@@ -125,8 +130,22 @@ function handleFavorite(event: MouseEvent) {
           <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
         </svg>
       </button>
-      <template v-if="showArtwork && thumbnailUrl">
-        <img :src="thumbnailUrl" :alt="track.title" class="track-artwork" />
+      <template v-if="showArtwork && thumbnailUrl && !imageLoadError">
+        <img
+          :src="thumbnailUrl"
+          :alt="track.title"
+          class="track-artwork"
+          @error="handleImageError"
+        />
+      </template>
+      <template v-else-if="showArtwork && (!thumbnailUrl || imageLoadError)">
+        <div class="track-artwork-placeholder">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"
+            />
+          </svg>
+        </div>
       </template>
       <template v-else-if="index !== undefined">
         <span v-if="!showPlayingIndicator" class="track-number">{{ index + 1 }}</span>
@@ -225,6 +244,22 @@ function handleFavorite(event: MouseEvent) {
   height: 40px;
   border-radius: 4px;
   object-fit: cover;
+}
+
+.track-artwork-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-surface-variant);
+  background-color: var(--color-surface-variant);
+}
+
+.track-artwork-placeholder svg {
+  width: 40%;
+  height: 40%;
 }
 
 .hover-play {
